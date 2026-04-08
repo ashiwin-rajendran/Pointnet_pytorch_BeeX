@@ -1,9 +1,9 @@
-# Pytorch Implementation of PointNet and PointNet++ 
+# Pytorch Implementation of PointNet and PointNet++
 
 This repo is implementation for [PointNet](http://openaccess.thecvf.com/content_cvpr_2017/papers/Qi_PointNet_Deep_Learning_CVPR_2017_paper.pdf) and [PointNet++](http://papers.nips.cc/paper/7095-pointnet-deep-hierarchical-feature-learning-on-point-sets-in-a-metric-space.pdf) in pytorch.
 
 ## Update
-**2021/03/27:** 
+**2021/03/27:**
 
 (1) Release pre-trained models for semantic segmentation, where PointNet++ can achieve **53.5\%** mIoU.
 
@@ -11,19 +11,19 @@ This repo is implementation for [PointNet](http://openaccess.thecvf.com/content_
 
 **2021/03/20:** Update codes for classification, including:
 
-(1) Add codes for training **ModelNet10** dataset. Using setting of ``--num_category 10``. 
+(1) Add codes for training **ModelNet10** dataset. Using setting of ``--num_category 10``.
 
-(2) Add codes for running on CPU only. Using setting of ``--use_cpu``. 
+(2) Add codes for running on CPU only. Using setting of ``--use_cpu``.
 
-(3) Add codes for offline data preprocessing to accelerate training. Using setting of ``--process_data``. 
+(3) Add codes for offline data preprocessing to accelerate training. Using setting of ``--process_data``.
 
-(4) Add codes for training with uniform sampling. Using setting of ``--use_uniform_sample``. 
+(4) Add codes for training with uniform sampling. Using setting of ``--use_uniform_sample``.
 
 **2019/11/26:**
 
-(1) Fixed some errors in previous codes and added data augmentation tricks. Now classification by only 1024 points can achieve **92.8\%**! 
+(1) Fixed some errors in previous codes and added data augmentation tricks. Now classification by only 1024 points can achieve **92.8\%**!
 
-(2) Added testing codes, including classification and segmentation, and semantic segmentation with visualization. 
+(2) Added testing codes, including classification and segmentation, and semantic segmentation with visualization.
 
 (3) Organized all models into `./models` files for easy using.
 
@@ -38,12 +38,12 @@ conda install pytorch==1.6.0 cudatoolkit=10.1 -c pytorch
 Download alignment **ModelNet** [here](https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip) and save in `data/modelnet40_normal_resampled/`.
 
 ### Run
-You can run different modes with following codes. 
+You can run different modes with following codes.
 * If you want to use offline processing of data, you can use `--process_data` in the first run. You can download pre-processd data [here](https://drive.google.com/drive/folders/1_fBYbDO3XSdRt3DSbEBe41r5l9YpIGWF?usp=sharing) and save it in `data/modelnet40_normal_resampled/`.
 * If you want to train on ModelNet10, you can use `--num_category 10`.
 ```shell
 # ModelNet40
-## Select different models in ./models 
+## Select different models in ./models
 
 ## e.g., pointnet2_ssg without normal features
 python train_classification.py --model pointnet2_cls_ssg --log_dir pointnet2_cls_ssg
@@ -81,19 +81,19 @@ python test_classification.py --log_dir pointnet2_cls_ssg --num_category 10
 Download alignment **ShapeNet** [here](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)  and save in `data/shapenetcore_partanno_segmentation_benchmark_v0_normal/`.
 ### Run
 ```
-## Check model in ./models 
+## Check model in ./models
 ## e.g., pointnet2_msg
 python train_partseg.py --model pointnet2_part_seg_msg --normal --log_dir pointnet2_part_seg_msg
 python test_partseg.py --normal --log_dir pointnet2_part_seg_msg
 ```
 ### Performance
-| Model | Inctance avg IoU| Class avg IoU 
+| Model | Inctance avg IoU| Class avg IoU
 |--|--|--|
-|PointNet (Official)	|83.7|80.4	
-|PointNet2 (Official)|85.1	|81.9	
-|PointNet (Pytorch)|	84.3	|81.1|	
-|PointNet2_SSG (Pytorch)|	84.9|	81.8	
-|PointNet2_MSG (Pytorch)|	**85.4**|	**82.5**	
+|PointNet (Official)	|83.7|80.4
+|PointNet2 (Official)|85.1	|81.9
+|PointNet (Pytorch)|	84.3	|81.1|
+|PointNet2_SSG (Pytorch)|	84.9|	81.8
+|PointNet2_MSG (Pytorch)|	**85.4**|	**82.5**
 
 
 ## Semantic Segmentation (S3DIS)
@@ -106,7 +106,7 @@ python collect_indoor3d_data.py
 Processed data will save in `data/stanford_indoor3d/`.
 ### Run
 ```
-## Check model in ./models 
+## Check model in ./models
 ## e.g., pointnet2_ssg
 python train_semseg.py --model pointnet2_sem_seg --test_area 5 --log_dir pointnet2_sem_seg
 python test_semseg.py --log_dir pointnet2_sem_seg --test_area 5 --visual
@@ -114,7 +114,7 @@ python test_semseg.py --log_dir pointnet2_sem_seg --test_area 5 --visual
 Visualization results will save in `log/sem_seg/pointnet2_sem_seg/visual/` and you can visualize these .obj file by [MeshLab](http://www.meshlab.net/).
 
 ### Performance
-|Model  | Overall Acc |Class avg IoU | Checkpoint 
+|Model  | Overall Acc |Class avg IoU | Checkpoint
 |--|--|--|--|
 | PointNet (Pytorch) | 78.9 | 43.7| [40.7MB](log/sem_seg/pointnet_sem_seg) |
 | PointNet2_ssg (Pytorch) | **83.0** | **53.5**| [11.2MB](log/sem_seg/pointnet2_sem_seg) |
@@ -124,8 +124,8 @@ Visualization results will save in `log/sem_seg/pointnet2_sem_seg/visual/` and y
 ```
 ## build C++ code for visualization
 cd visualizer
-bash build.sh 
-## run one example 
+bash build.sh
+## run one example
 python show3d_balls.py
 ```
 ![](/visualizer/pic.png)
@@ -168,7 +168,7 @@ If you find this repo useful in your research, please consider citing it and our
 ```
 ```
 @InProceedings{yan20222dpass,
-      title={2DPASS: 2D Priors Assisted Semantic Segmentation on LiDAR Point Clouds}, 
+      title={2DPASS: 2D Priors Assisted Semantic Segmentation on LiDAR Point Clouds},
       author={Xu Yan and Jiantao Gao and Chaoda Zheng and Chao Zheng and Ruimao Zhang and Shuguang Cui and Zhen Li},
       year={2022},
       journal={ECCV}
@@ -181,3 +181,24 @@ If you find this repo useful in your research, please consider citing it and our
 * [PCT: Point Cloud Transformer](https://github.com/MenghaoGuo/PCT)
 * [PSNet: Fast Data Structuring for Hierarchical Deep Learning on Point Cloud](https://github.com/lly007/PointStructuringNet)
 * [Stratified Transformer for 3D Point Cloud Segmentation, CVPR'22](https://github.com/dvlab-research/stratified-transformer)
+
+
+
+
+
+
+# CUSTOM ASHWIN NOTES
+
+
+conda create -n pointnet_beex python=3.9
+conda activate pointnet_beex
+
+# Install PyTorch with CUDA 11.8 (supports RTX 4070 sm_89)
+pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
+
+# Install repo dependencies
+pip install matplotlib tqdm scikit-learn
+
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+
+pip install "numpy<2"

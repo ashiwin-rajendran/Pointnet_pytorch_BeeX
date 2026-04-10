@@ -6,7 +6,17 @@ Date: Nov 2019
 import argparse
 import os
 from data_utils.S3DISDataLoader import ScannetDatasetWholeScene
-from data_utils.indoor3d_util import g_label2color
+
+g_label2color = {
+    0: [128, 128, 128],  # unlabeled   — grey
+    1: [227, 114, 34],  # rock_trail  — orange
+    2: [44, 160, 44],  # seawall     — green
+    3: [31, 119, 180],  # sheetpile   — blue
+    4: [214, 39, 40],  # ship_hull   — red
+    5: [148, 103, 189],  # random_structure — purple
+    6: [255, 127, 14],  # anomaly     — amber
+    7: [23, 190, 207],  # seabed      — teal
+}
 import torch
 import logging
 from pathlib import Path
@@ -20,21 +30,24 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, "models"))
 
-classes = [
-    "ceiling",
-    "floor",
-    "wall",
-    "beam",
-    "column",
-    "window",
-    "door",
-    "table",
-    "chair",
-    "sofa",
-    "bookcase",
-    "board",
-    "clutter",
-]
+# classes = [
+#     "ceiling",
+#     "floor",
+#     "wall",
+#     "beam",
+#     "column",
+#     "window",
+#     "door",
+#     "table",
+#     "chair",
+#     "sofa",
+#     "bookcase",
+#     "board",
+#     "clutter",
+# ]
+
+classes = ["unlabeled", "rock_trail", "seawall", "sheetpile", "ship_hull", "random_structure", "anomaly", "seabed"]
+
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
 seg_label_to_cat = {}
@@ -91,11 +104,11 @@ def main(args):
     log_string("PARAMETER ...")
     log_string(args)
 
-    NUM_CLASSES = 13
+    NUM_CLASSES = 8
     BATCH_SIZE = args.batch_size
     NUM_POINT = args.num_point
 
-    root = "data/s3dis/stanford_indoor3d/"
+    root = "data/stanford_indoor3d/"
 
     TEST_DATASET_WHOLE_SCENE = ScannetDatasetWholeScene(
         root, split="test", test_area=args.test_area, block_points=NUM_POINT
@@ -226,7 +239,8 @@ def main(args):
                 total_correct_class[l] / float(total_iou_deno_class[l]),
             )
         log_string(iou_per_class_str)
-        log_string("eval point avg class IoU: %f" % np.mean(IoU))
+        seen_mask = np.array(total_seen_class) > 0
+        log_string("eval point avg class IoU: %f" % (np.mean(IoU[seen_mask]) if seen_mask.any() else 0.0))
         log_string(
             "eval whole scene point avg class acc: %f"
             % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)))

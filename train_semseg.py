@@ -22,21 +22,24 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, "models"))
 
-classes = [
-    "ceiling",
-    "floor",
-    "wall",
-    "beam",
-    "column",
-    "window",
-    "door",
-    "table",
-    "chair",
-    "sofa",
-    "bookcase",
-    "board",
-    "clutter",
-]
+# classes = [
+#     "ceiling",
+#     "floor",
+#     "wall",
+#     "beam",
+#     "column",
+#     "window",
+#     "door",
+#     "table",
+#     "chair",
+#     "sofa",
+#     "bookcase",
+#     "board",
+#     "clutter",
+# ]
+
+classes = ["unlabeled", "rock_trail", "seawall", "sheetpile", "ship_hull", "random_structure", "anomaly", "seabed"]
+
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
 seg_label_to_cat = {}
@@ -105,7 +108,7 @@ def main(args):
     log_string(args)
 
     root = "data/stanford_indoor3d/"
-    NUM_CLASSES = 13
+    NUM_CLASSES = 8
     NUM_POINT = args.npoint
     BATCH_SIZE = args.batch_size
 
@@ -134,13 +137,13 @@ def main(args):
         TRAIN_DATASET,
         batch_size=BATCH_SIZE,
         shuffle=True,
-        num_workers=10,
+        num_workers=4,
         pin_memory=True,
         drop_last=True,
         worker_init_fn=lambda x: np.random.seed(x + int(time.time())),
     )
     testDataLoader = torch.utils.data.DataLoader(
-        TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False, num_workers=10, pin_memory=True, drop_last=True
+        TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False, drop_last=False
     )
     weights = torch.Tensor(TRAIN_DATASET.labelweights).cuda()
 
@@ -290,13 +293,15 @@ def main(args):
                     total_iou_deno_class[l] += np.sum(((pred_val == l) | (batch_label == l)))
 
             labelweights = labelweights.astype(np.float32) / np.sum(labelweights.astype(np.float32))
-            mIoU = np.mean(np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=np.float) + 1e-6))
+            iou_arr = np.array(total_correct_class) / (np.array(total_iou_deno_class, dtype=float) + 1e-6)
+            seen_mask = np.array(total_seen_class) > 0  # only classes that appear in test
+            mIoU = np.mean(iou_arr[seen_mask]) if seen_mask.any() else 0.0
             log_string("eval mean loss: %f" % (loss_sum / float(num_batches)))
             log_string("eval point avg class IoU: %f" % (mIoU))
             log_string("eval point accuracy: %f" % (total_correct / float(total_seen)))
             log_string(
                 "eval point avg class acc: %f"
-                % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=np.float) + 1e-6)))
+                % (np.mean(np.array(total_correct_class) / (np.array(total_seen_class, dtype=float) + 1e-6)))
             )
 
             iou_per_class_str = "------- IoU --------\n"

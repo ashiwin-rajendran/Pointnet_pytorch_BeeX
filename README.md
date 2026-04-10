@@ -198,7 +198,30 @@ pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorc
 
 # Install repo dependencies
 pip install matplotlib tqdm scikit-learn
+pip install open3d
 
 python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 
 pip install "numpy<2"
+
+python train_semseg.py \
+  --model pointnet2_sem_seg \
+  --test_area 2 \
+  --log_dir sonar_seg \
+  --batch_size 4 \
+  --epoch 64 \
+  --npoint 1024
+
+
+python test_semseg.py \
+  --log_dir sonar_seg \
+  --test_area 2 \
+  --num_point 1024 \
+  --batch_size 4 \
+  --num_votes 3
+
+  python infer_pcd.py \
+  --pcd     /path/to/your_scan.pcd \
+  --log_dir sonar_seg \
+  --num_point 1024 \
+  --num_votes 5

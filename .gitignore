@@ -115,3 +115,8 @@ dmypy.json
 
 # Data
 data/
+
+# Logs
+log/
+# Others
+README.pdf

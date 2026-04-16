@@ -3,6 +3,7 @@ import numpy as np
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
+import torch, time, random
 
 
 class S3DISDataset(Dataset):
@@ -22,21 +23,23 @@ class S3DISDataset(Dataset):
         self.transform = transform
         rooms = sorted(os.listdir(data_root))
         rooms = [room for room in rooms if "Area_" in room]
+
+        # To ensure the area is split accordingly and no data corruption
         if split == "train":
-            rooms_split = [room for room in rooms if not "Area_{}".format(test_area) in room]
+            rooms_split = [room for room in rooms if "Area_{}_".format(test_area) not in room]
         else:
-            rooms_split = [room for room in rooms if "Area_{}".format(test_area) in room]
+            rooms_split = [room for room in rooms if "Area_{}_".format(test_area) in room]
 
         self.room_points, self.room_labels = [], []
         self.room_coord_min, self.room_coord_max = [], []
         num_point_all = []
-        labelweights = np.zeros(8)
+        labelweights = np.zeros(8)  # TODO: Hardcoded labels - need to change
 
         for room_name in tqdm(rooms_split, total=len(rooms_split)):
             room_path = os.path.join(data_root, room_name)
             room_data = np.load(room_path)  # xyzrgbl, N*7
             points, labels = room_data[:, 0:6], room_data[:, 6]  # xyzrgb, N*6; l, N
-            tmp, _ = np.histogram(labels, range(9))
+            tmp, _ = np.histogram(labels, range(9))  # TODO: Hardcoded labels - need to change
             labelweights += tmp
             coord_min, coord_max = np.amin(points, axis=0)[:3], np.amax(points, axis=0)[:3]
             self.room_points.append(points), self.room_labels.append(labels)
@@ -44,7 +47,10 @@ class S3DISDataset(Dataset):
             num_point_all.append(labels.size)
         labelweights = labelweights.astype(np.float32)
         labelweights = labelweights / np.sum(labelweights)
-        self.labelweights = np.power(np.amax(labelweights) / (labelweights + 1e-6), 1 / 3.0)
+
+        # Gives stronger penalty on minority classes
+        self.labelweights = np.power(np.amax(labelweights) / (labelweights + 1e-6), 1 / 2.0)
+
         print(self.labelweights)
         sample_prob = num_point_all / np.sum(num_point_all)
         num_iter = int(np.sum(num_point_all) * sample_rate / num_point)
@@ -84,12 +90,33 @@ class S3DISDataset(Dataset):
         # normalize
         selected_points = points[selected_point_idxs, :]  # num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
-        current_points[:, 6] = selected_points[:, 0] / self.room_coord_max[room_idx][0]
-        current_points[:, 7] = selected_points[:, 1] / self.room_coord_max[room_idx][1]
-        current_points[:, 8] = selected_points[:, 2] / self.room_coord_max[room_idx][2]
+
+        # Prevents NaN eval loss
+        for ch, ax in zip([6, 7, 8], [0, 1, 2]):
+            denom = self.room_coord_max[room_idx][ax]
+            current_points[:, ch] = selected_points[:, ax] / denom if abs(denom) > 1e-6 else np.zeros(self.num_point)
+
         selected_points[:, 0] = selected_points[:, 0] - center[0]
         selected_points[:, 1] = selected_points[:, 1] - center[1]
-        selected_points[:, 3:6] /= 255.0
+
+        # RGB channels replaced with Z derived depth features
+        # =========
+        z = selected_points[:, 2]
+
+        # Ch 3: Z relative to block mean — how far above/below average depth -> relative depth
+        z_mean = z.mean()
+        selected_points[:, 3] = z - z_mean
+
+        # Ch 4: Z range position — 0 = deepest point in block, 1 = shallowest -> Normalised position
+        z_min, z_max = z.min(), z.max()
+        z_range = max(z_max - z_min, 1e-6)
+        selected_points[:, 4] = (z - z_min) / z_range
+
+        # Ch 5: Local Z deviation — high = outlier depth, low = part of flat surface -> Flatness sore
+        z_std = max(z.std(), 1e-6)
+        selected_points[:, 5] = np.abs(z - z_mean) / z_std
+
+        # ==========
         current_points[:, 0:6] = selected_points
         current_labels = labels[selected_point_idxs]
         if self.transform is not None:
@@ -112,9 +139,9 @@ class ScannetDatasetWholeScene:
         self.scene_points_num = []
         assert split in ["train", "test"]
         if self.split == "train":
-            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d" % test_area) is -1]
+            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d_" % test_area) == -1]
         else:
-            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d" % test_area) is not -1]
+            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d_" % test_area) != -1]
         self.scene_points_list = []
         self.semantic_labels_list = []
         self.room_coord_min, self.room_coord_max = [], []
@@ -127,14 +154,16 @@ class ScannetDatasetWholeScene:
             self.room_coord_min.append(coord_min), self.room_coord_max.append(coord_max)
         assert len(self.scene_points_list) == len(self.semantic_labels_list)
 
-        labelweights = np.zeros(8)
+        labelweights = np.zeros(8)  # TODO: Hardcoded labels - need to change
         for seg in self.semantic_labels_list:
             tmp, _ = np.histogram(seg, range(9))
             self.scene_points_num.append(seg.shape[0])
             labelweights += tmp
         labelweights = labelweights.astype(np.float32)
         labelweights = labelweights / np.sum(labelweights)
-        self.labelweights = np.power(np.amax(labelweights) / (labelweights + 1e-6), 1 / 3.0)
+
+        # Gives stronger penalty on minority classes - here is inference similar to training
+        self.labelweights = np.power(np.amax(labelweights) / (labelweights + 1e-6), 1 / 2.0)
 
     def __getitem__(self, index):
         point_set_ini = self.scene_points_list[index]
@@ -168,12 +197,26 @@ class ScannetDatasetWholeScene:
                 np.random.shuffle(point_idxs)
                 data_batch = points[point_idxs, :]
                 normlized_xyz = np.zeros((point_size, 3))
-                normlized_xyz[:, 0] = data_batch[:, 0] / coord_max[0]
-                normlized_xyz[:, 1] = data_batch[:, 1] / coord_max[1]
-                normlized_xyz[:, 2] = data_batch[:, 2] / coord_max[2]
+
+                # Safe devision similar to train script
+                for ch, ax in zip([0, 1, 2], [0, 1, 2]):
+                    denom = coord_max[ax]
+                    normlized_xyz[:, ch] = data_batch[:, ax] / denom if abs(denom) > 1e-6 else np.zeros(point_size)
                 data_batch[:, 0] = data_batch[:, 0] - (s_x + self.block_size / 2.0)
                 data_batch[:, 1] = data_batch[:, 1] - (s_y + self.block_size / 2.0)
-                data_batch[:, 3:6] /= 255.0
+
+                # RGB channels replaced with Z derived depth features
+                # =========
+                z = data_batch[:, 2]
+                z_mean = z.mean()
+                z_std = max(z.std(), 1e-6)
+                z_min, z_max = z.min(), z.max()
+                z_range = max(z_max - z_min, 1e-6)
+                data_batch[:, 3] = z - z_mean
+                data_batch[:, 4] = (z - z_min) / z_range
+                data_batch[:, 5] = np.abs(z - z_mean) / z_std
+                # ==========
+
                 data_batch = np.concatenate((data_batch, normlized_xyz), axis=1)
                 label_batch = labels[point_idxs].astype(int)
                 batch_weight = self.labelweights[label_batch]
@@ -193,7 +236,7 @@ class ScannetDatasetWholeScene:
 
 
 if __name__ == "__main__":
-    data_root = "/data/yxu/PointNonLocal/data/stanford_indoor3d/"
+    data_root = "/data/yxu/PointNonLocal/data/stanford_indoor3d/"  # TODO: Hardcoded path - change later
     num_point, test_area, block_size, sample_rate = 4096, 5, 1.0, 0.01
 
     point_data = S3DISDataset(
@@ -208,7 +251,6 @@ if __name__ == "__main__":
     print("point data size:", point_data.__len__())
     print("point data 0 shape:", point_data.__getitem__(0)[0].shape)
     print("point label 0 shape:", point_data.__getitem__(0)[1].shape)
-    import torch, time, random
 
     manual_seed = 123
     random.seed(manual_seed)

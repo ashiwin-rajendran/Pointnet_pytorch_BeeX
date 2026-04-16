@@ -17,34 +17,29 @@ from tqdm import tqdm
 import provider
 import numpy as np
 import time
+import yaml
+import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, "models"))
 
-# classes = [
-#     "ceiling",
-#     "floor",
-#     "wall",
-#     "beam",
-#     "column",
-#     "window",
-#     "door",
-#     "table",
-#     "chair",
-#     "sofa",
-#     "bookcase",
-#     "board",
-#     "clutter",
-# ]
 
-classes = ["unlabeled", "rock_trail", "seawall", "sheetpile", "ship_hull", "random_structure", "anomaly", "seabed"]
+# Yaml loading - classes stay in sync with the annotation tool
+def load_class_map(yaml_path: str) -> dict:
+    """Returns {label_id: class_name}, always including 0=unlabeled."""
+    with open(yaml_path) as f:
+        cfg = yaml.safe_load(f)
+    mapping = {0: "unlabeled"}
+    for c in cfg.get("classes", []):
+        mapping[c["id"]] = c["name"]
+    return mapping
 
-class2label = {cls: i for i, cls in enumerate(classes)}
-seg_classes = class2label
-seg_label_to_cat = {}
-for i, cat in enumerate(seg_classes.keys()):
-    seg_label_to_cat[i] = cat
+
+SEG_LABEL_TO_CAT = load_class_map(
+    "/mnt/BeeX-Ashwin/Vision_Tools/3D_PointCloud_Workflow/pcd_annotator/config/classes.yaml"
+)  # TODO: hardcoded class yaml path. Need to change later
+seg_label_to_cat = SEG_LABEL_TO_CAT
 
 
 def inplace_relu(m):
@@ -67,8 +62,26 @@ def parse_args():
     parser.add_argument("--step_size", type=int, default=10, help="Decay step for lr decay [default: every 10 epochs]")
     parser.add_argument("--lr_decay", type=float, default=0.7, help="Decay rate for lr decay [default: 0.7]")
     parser.add_argument("--test_area", type=int, default=5, help="Which area to use for test, option: 1-6 [default: 5]")
+    # Parameterized the block size
+    parser.add_argument("--block_size", type=float, default=10.0, help="Block size in metres before normalisation")
 
     return parser.parse_args()
+
+
+# To discover the present classes inside dataset and the model rezies automatically
+def discover_classes(data_root: str):
+    """
+    Scan all .npy files and return:
+      present_ids  : sorted list of label IDs that actually exist
+      num_classes  : max label ID + 1
+    """
+    present = set()
+    for f in Path(data_root).glob("*.npy"):
+        d = np.load(f)
+        present.update(np.unique(d[:, 6].astype(int)).tolist())
+    present_ids = sorted(present)
+    num_classes = max(present_ids) + 1
+    return present_ids, num_classes
 
 
 def main(args):
@@ -108,7 +121,23 @@ def main(args):
     log_string(args)
 
     root = "data/stanford_indoor3d/"
-    NUM_CLASSES = 8
+    present_ids, NUM_CLASSES = discover_classes(root)
+
+    # Uses the normalized stats from the survey areas and uses that to
+    # do division which correctly scales back to normalized units
+    stats_path = os.path.join(root, "normalization_stats.json")
+    if os.path.exists(stats_path):
+        with open(stats_path) as f:
+            norm_stats = json.load(f)
+        xyz_std = np.array(norm_stats["xyz_std"])
+        BLOCK_SIZE_NORM = args.block_size / xyz_std[0]
+        log_string(f"block_size={args.block_size}m  XYZ x_std={xyz_std[0]:.4f}  →  normalised={BLOCK_SIZE_NORM:.4f}")
+    else:
+        BLOCK_SIZE_NORM = args.block_size
+        log_string("No normalization_stats.json found — using block_size=10.0 as-is")
+
+    log_string(f"Auto-detected label IDs : {present_ids}")
+    log_string(f"NUM_CLASSES set to      : {NUM_CLASSES}")
     NUM_POINT = args.npoint
     BATCH_SIZE = args.batch_size
 
@@ -118,7 +147,7 @@ def main(args):
         data_root=root,
         num_point=NUM_POINT,
         test_area=args.test_area,
-        block_size=1.0,
+        block_size=BLOCK_SIZE_NORM,
         sample_rate=1.0,
         transform=None,
     )
@@ -128,7 +157,7 @@ def main(args):
         data_root=root,
         num_point=NUM_POINT,
         test_area=args.test_area,
-        block_size=1.0,
+        block_size=BLOCK_SIZE_NORM,
         sample_rate=1.0,
         transform=None,
     )
@@ -146,6 +175,13 @@ def main(args):
         TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False, drop_last=False
     )
     weights = torch.Tensor(TRAIN_DATASET.labelweights).cuda()
+
+    # Zeroing absent classes prevents NaN loss.
+    # Clamping at 10.0 prevents extreme gradients for rare present classes.
+    for i in range(NUM_CLASSES):
+        if i not in present_ids:
+            weights[i] = 0.0
+    weights = torch.clamp(weights, max=10.0)
 
     log_string("The number of training data is: %d" % len(TRAIN_DATASET))
     log_string("The number of test data is: %d" % len(TEST_DATASET))
@@ -305,11 +341,13 @@ def main(args):
             )
 
             iou_per_class_str = "------- IoU --------\n"
+            # Display only change in terminal- Doesnt affect the training
             for l in range(NUM_CLASSES):
-                iou_per_class_str += "class %s weight: %.3f, IoU: %.3f \n" % (
-                    seg_label_to_cat[l] + " " * (14 - len(seg_label_to_cat[l])),
-                    labelweights[l - 1],
-                    total_correct_class[l] / float(total_iou_deno_class[l]),
+                cls_name = seg_label_to_cat.get(l, f"class_{l}")
+                present_marker = "*" if l in present_ids else " "
+                iou_val = total_correct_class[l] / float(total_iou_deno_class[l] + 1e-6)
+                iou_per_class_str += (
+                    f"{present_marker} class {cls_name:<20} weight: {labelweights[l]:.3f}, IoU: {iou_val:.3f}\n"
                 )
 
             log_string(iou_per_class_str)

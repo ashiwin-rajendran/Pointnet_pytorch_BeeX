@@ -204,13 +204,14 @@ python -c "import torch; print(torch.__version__); print(torch.cuda.is_available
 
 pip install "numpy<2"
 
-python train_semseg.py \
+  python train_semseg.py \
   --model pointnet2_sem_seg \
-  --test_area 2 \
+  --test_area 5 \
   --log_dir sonar_seg \
   --batch_size 4 \
-  --epoch 64 \
-  --npoint 1024
+  --epoch 100 \
+  --npoint 2048 \
+  --block_size 10.0
 
 
 python test_semseg.py \
@@ -225,3 +226,19 @@ python test_semseg.py \
   --log_dir sonar_seg \
   --num_point 1024 \
   --num_votes 5
+
+
+  Get the name of the bag file
+  Create a empty folder under the name
+  change the default directory "default_open_dir" in config.yaml to the one created above
+
+  Run roscore
+  Run the particular bag file
+  Run the vision pipeline
+  Run the individual pcd extraction which doesnt extracts all the pointclouds instead it checks the overlap of the pointcloud (based on axis aligned boundary box) and extracts only unique "bounded pointcloud" frames as pcd and store it in the created folder. All these individual pcd frames are in ned coordinate frames
+  Run the merge pcd file which merges all the individual pcd frames into one single pcd.
+  Run the annotation tool and load the merged pcd and perform the annotation and save the annotated pcd, labels.txt and classes.txt
+  Run the backprojection script which takes in the annoated labels.txt and all the individual pcds and projects the labels onto each frames.
+  Run the npy conversion script which takes in the input folder which contains all the survey sites and converts to specific areas and normalizes the points and saves in npy
+
+  copy the converted npy to pointnet data folder and initiate the training

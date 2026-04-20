@@ -91,11 +91,14 @@ class S3DISDataset(Dataset):
         selected_points = points[selected_point_idxs, :]  # num_point * 6
         current_points = np.zeros((self.num_point, 9))  # num_point * 9
 
-        # Prevents NaN eval loss
+        # Ch 6-8 computed first, from raw (pre-centering) block coords
         for ch, ax in zip([6, 7, 8], [0, 1, 2]):
-            denom = self.room_coord_max[room_idx][ax]
-            current_points[:, ch] = selected_points[:, ax] / denom if abs(denom) > 1e-6 else np.zeros(self.num_point)
+            lo = selected_points[:, ax].min()
+            hi = selected_points[:, ax].max()
+            rng = max(hi - lo, 1e-6)
+            current_points[:, ch] = (selected_points[:, ax] - lo) / rng
 
+        # XY centering applied after ch 6-8 are computed
         selected_points[:, 0] = selected_points[:, 0] - center[0]
         selected_points[:, 1] = selected_points[:, 1] - center[1]
 
@@ -198,10 +201,13 @@ class ScannetDatasetWholeScene:
                 data_batch = points[point_idxs, :]
                 normlized_xyz = np.zeros((point_size, 3))
 
-                # Safe devision similar to train script
+                # Local block range per axis:
                 for ch, ax in zip([0, 1, 2], [0, 1, 2]):
-                    denom = coord_max[ax]
-                    normlized_xyz[:, ch] = data_batch[:, ax] / denom if abs(denom) > 1e-6 else np.zeros(point_size)
+                    lo = data_batch[:, ax].min()
+                    hi = data_batch[:, ax].max()
+                    rng = max(hi - lo, 1e-6)
+                    normlized_xyz[:, ch] = (data_batch[:, ax] - lo) / rng
+
                 data_batch[:, 0] = data_batch[:, 0] - (s_x + self.block_size / 2.0)
                 data_batch[:, 1] = data_batch[:, 1] - (s_y + self.block_size / 2.0)
 

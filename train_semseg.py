@@ -18,7 +18,6 @@ import provider
 import numpy as np
 import time
 import yaml
-import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
@@ -123,19 +122,6 @@ def main(args):
     root = "data/stanford_indoor3d/"
     present_ids, NUM_CLASSES = discover_classes(root)
 
-    # Uses the normalized stats from the survey areas and uses that to
-    # do division which correctly scales back to normalized units
-    stats_path = os.path.join(root, "normalization_stats.json")
-    if os.path.exists(stats_path):
-        with open(stats_path) as f:
-            norm_stats = json.load(f)
-        xyz_std = np.array(norm_stats["xyz_std"])
-        BLOCK_SIZE_NORM = args.block_size / xyz_std[0]
-        log_string(f"block_size={args.block_size}m  XYZ x_std={xyz_std[0]:.4f}  →  normalised={BLOCK_SIZE_NORM:.4f}")
-    else:
-        BLOCK_SIZE_NORM = args.block_size
-        log_string("No normalization_stats.json found — using block_size=10.0 as-is")
-
     log_string(f"Auto-detected label IDs : {present_ids}")
     log_string(f"NUM_CLASSES set to      : {NUM_CLASSES}")
     NUM_POINT = args.npoint
@@ -147,7 +133,7 @@ def main(args):
         data_root=root,
         num_point=NUM_POINT,
         test_area=args.test_area,
-        block_size=BLOCK_SIZE_NORM,
+        block_size=args.block_size,
         sample_rate=1.0,
         transform=None,
     )
@@ -157,7 +143,7 @@ def main(args):
         data_root=root,
         num_point=NUM_POINT,
         test_area=args.test_area,
-        block_size=BLOCK_SIZE_NORM,
+        block_size=args.block_size,
         sample_rate=1.0,
         transform=None,
     )

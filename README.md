@@ -211,7 +211,9 @@ pip install "numpy<2"
   --batch_size 4 \
   --epoch 100 \
   --npoint 2048 \
-  --block_size 10.0
+  --block_size 5.0
+
+python3 evaluation_metrics.py --log_file /mnt/BeeX-Ashwin/Vision_Tools/3D_PointCloud_Workflow/Pointnet_pytorch_BeeX/log/sem_seg/sonar_seg_normalised/logs/pointnet2_sem_seg.txt --output_dir /mnt/BeeX-Ashwin/Vision_Tools/3D_PointCloud_Workflow/Pointnet_pytorch_BeeX/log/sem_seg/sonar_seg_normalised/logs/analysis --run_name sonar_seg_normalised
 
 
 python test_semseg.py \
@@ -242,3 +244,10 @@ python test_semseg.py \
   Run the npy conversion script which takes in the input folder which contains all the survey sites and converts to specific areas and normalizes the points and saves in npy
 
   copy the converted npy to pointnet data folder and initiate the training
+
+
+conda activate pointnet_beex
+python3 -c "import torch; print(torch.utils.cmake_prefix_path)"
+
+catkin build \
+  -DCMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)');/opt/ros/noetic"

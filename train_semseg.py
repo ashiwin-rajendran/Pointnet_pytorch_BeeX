@@ -241,7 +241,14 @@ def main(args):
             optimizer.zero_grad()
 
             points = points.data.numpy()
+
+            # Additional Augmentations Included
             points[:, :, :3] = provider.rotate_point_cloud_z(points[:, :, :3])
+            points[:, :, :3] = provider.jitter_point_cloud(points[:, :, :3], sigma=0.005, clip=0.02)
+            points[:, :, :3] = provider.random_scale_point_cloud(points[:, :, :3], scale_low=0.8, scale_high=1.2)
+            points[:, :, :3] = provider.shift_point_cloud(points[:, :, :3], shift_range=0.05)
+            points[:, :, :3] = provider.random_point_dropout(points[:, :, :3], max_dropout_ratio=0.2)
+
             points = torch.Tensor(points)
             points, target = points.float().cuda(), target.long().cuda()
             points = points.transpose(2, 1)

@@ -219,6 +219,37 @@ def main(args):
     global_epoch = 0
     best_iou = 0
 
+    # SAVE AUGMENTATION SAMPLES - For verification
+    aug_save_dir = experiment_dir / "aug_samples"
+    aug_save_dir.mkdir(exist_ok=True)
+
+    def save_aug_step(pts_batch, label_batch, step_name):
+        n_save = min(5, pts_batch.shape[0])
+        for s in range(n_save):
+            xyz = pts_batch[s, :, :3]
+            label = label_batch[s].numpy().reshape(-1, 1)
+            out = np.hstack([xyz, label])
+            path = aug_save_dir / f"{step_name}_sample{s}.txt"
+            np.savetxt(str(path), out, fmt="%.6f", header="x y z label", comments="")
+        print(f"Saved {n_save} samples → {step_name}")
+
+    # Grab one batch from the dataloader just for saving
+    _pts, _tgt = next(iter(trainDataLoader))
+    _pts = _pts.data.numpy()
+    save_aug_step(_pts.copy(), _tgt, "00_raw")
+    _pts[:, :, :3] = provider.rotate_point_cloud_z(_pts[:, :, :3])
+    save_aug_step(_pts.copy(), _tgt, "01_rotate_z")
+    _pts[:, :, :3] = provider.jitter_point_cloud(_pts[:, :, :3], sigma=0.005, clip=0.02)
+    save_aug_step(_pts.copy(), _tgt, "02_jitter")
+    _pts[:, :, :3] = provider.random_scale_point_cloud(_pts[:, :, :3], scale_low=0.8, scale_high=1.2)
+    save_aug_step(_pts.copy(), _tgt, "03_scale")
+    _pts[:, :, :3] = provider.shift_point_cloud(_pts[:, :, :3], shift_range=0.05)
+    save_aug_step(_pts.copy(), _tgt, "04_shift")
+    _pts[:, :, :3] = provider.random_point_dropout(_pts[:, :, :3], max_dropout_ratio=0.2)
+    save_aug_step(_pts.copy(), _tgt, "05_dropout_final")
+    del _pts, _tgt
+    print("Aug sample saving done. Starting training...")
+
     for epoch in range(start_epoch, args.epoch):
         """Train on chopped scenes"""
         log_string("**** Epoch %d (%d/%s) ****" % (global_epoch + 1, epoch + 1, args.epoch))

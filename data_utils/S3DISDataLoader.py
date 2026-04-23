@@ -24,11 +24,19 @@ class S3DISDataset(Dataset):
         rooms = sorted(os.listdir(data_root))
         rooms = [room for room in rooms if "Area_" in room]
 
-        # To ensure the area is split accordingly and no data corruption
-        if split == "train":
-            rooms_split = [room for room in rooms if "Area_{}_".format(test_area) not in room]
+        # Accept int, list, or comma-separated string e.g. "4,5"
+        if isinstance(test_area, (int, float)):
+            test_area_ids = [int(test_area)]
+        elif isinstance(test_area, str):
+            test_area_ids = [int(x.strip()) for x in test_area.split(",")]
         else:
-            rooms_split = [room for room in rooms if "Area_{}_".format(test_area) in room]
+            test_area_ids = list(test_area)
+        test_area_tags = [f"Area_{a}_" for a in test_area_ids]
+
+        if split == "train":
+            rooms_split = [room for room in rooms if not any(tag in room for tag in test_area_tags)]
+        else:
+            rooms_split = [room for room in rooms if any(tag in room for tag in test_area_tags)]
 
         self.room_points, self.room_labels = [], []
         self.room_coord_min, self.room_coord_max = [], []
@@ -141,10 +149,18 @@ class ScannetDatasetWholeScene:
         self.stride = stride
         self.scene_points_num = []
         assert split in ["train", "test"]
-        if self.split == "train":
-            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d_" % test_area) == -1]
+        if isinstance(test_area, (int, float)):
+            test_area_ids = [int(test_area)]
+        elif isinstance(test_area, str):
+            test_area_ids = [int(x.strip()) for x in test_area.split(",")]
         else:
-            self.file_list = [d for d in os.listdir(root) if d.find("Area_%d_" % test_area) != -1]
+            test_area_ids = list(test_area)
+        test_area_tags = [f"Area_{a}_" for a in test_area_ids]
+
+        if self.split == "train":
+            self.file_list = [d for d in os.listdir(root) if not any(tag in d for tag in test_area_tags)]
+        else:
+            self.file_list = [d for d in os.listdir(root) if any(tag in d for tag in test_area_tags)]
         self.scene_points_list = []
         self.semantic_labels_list = []
         self.room_coord_min, self.room_coord_max = [], []

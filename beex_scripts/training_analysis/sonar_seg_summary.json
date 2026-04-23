@@ -1,0 +1,20 @@
+{
+  "run_name": "sonar_seg",
+  "total_epochs": 200,
+  "best_epoch": 36,
+  "best_miou": 0.4802,
+  "train_loss_at_best": 1.1061,
+  "eval_loss_at_best": 1.3722,
+  "train_acc_at_best": 0.8161,
+  "eval_acc_at_best": 0.652,
+  "per_class_iou_at_best": {
+    "unlabeled": 0.387,
+    "rock_trail": 0.0,
+    "seawall": 0.914,
+    "sheetpile": 0.0,
+    "ship_hull": 0.446,
+    "random_structure": 0.0,
+    "anomaly": 0.545,
+    "seabed": 0.588
+  }
+}

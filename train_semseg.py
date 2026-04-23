@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument("--npoint", type=int, default=4096, help="Point Number [default: 4096]")
     parser.add_argument("--step_size", type=int, default=10, help="Decay step for lr decay [default: every 10 epochs]")
     parser.add_argument("--lr_decay", type=float, default=0.7, help="Decay rate for lr decay [default: 0.7]")
-    parser.add_argument("--test_area", type=int, default=5, help="Which area to use for test, option: 1-6 [default: 5]")
+    parser.add_argument("--test_area", type=str, default="5", help="Test area(s), e.g. '5' or '4,5,6' [default: 5]")
     # Parameterized the block size
     parser.add_argument("--block_size", type=float, default=10.0, help="Block size in metres before normalisation")
 
@@ -109,6 +109,8 @@ def main(args):
 
     """LOG"""
     args = parse_args()
+    test_areas = [int(x.strip()) for x in str(args.test_area).split(",")]
+    print(f"Test areas: {test_areas}")
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")

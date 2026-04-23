@@ -206,7 +206,7 @@ pip install "numpy<2"
 
   python train_semseg.py \
   --model pointnet2_sem_seg \
-  --test_area 5 \
+  --test_area 5,6 \
   --log_dir sonar_seg \
   --batch_size 4 \
   --epoch 100 \
